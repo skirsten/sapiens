@@ -394,7 +394,7 @@ def main():
         for i, bboxes in enumerate(bboxes_batch):
             if len(bboxes) == 0:
                 bboxes_batch[i] = np.array(
-                    [[0, 0, orig_img_shape[1], orig_img_shape[0]]]
+                    [[0, 0, orig_img_shape[1], orig_img_shape[2]]] # orig_img_shape: B H W C
                 )
 
         img_bbox_map = {}
