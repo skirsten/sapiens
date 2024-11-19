@@ -195,24 +195,29 @@ def compile_model(
     args = (inputs["inputs"],)
     dynamic_batch = torch.export.Dim("batch", min=1, max=max_batch_size)
     dynamic_shapes = {"inputs": {0: dynamic_batch}}
-    exported_model = torch.export.export(
+
+    exported_model = torch.export.export_for_training(
         model, args=args, kwargs=kwargs, dynamic_shapes=dynamic_shapes
     )
-    for mode_str, mode in modes.items():
-        print(f"Compiling model with {mode_str} mode")
-        model = torch.compile(exported_model.module(), mode=mode)
-        s = torch.cuda.Stream()
-        s.wait_stream(torch.cuda.current_stream())
-        with torch.cuda.stream(s), torch.no_grad():
-            for i in range(3):
-                model(inputs["inputs"])
-        torch.cuda.current_stream().wait_stream(s)
-        mean = _benchmark(
-            exported_model.module(), inputs["inputs"], model_name=mode_str
-        )
-        if mean < min_mean:
-            min_mean = mean
-            best_mode = mode_str
+
+    # exported_model = torch.export.export(
+    #     model, args=args, kwargs=kwargs, dynamic_shapes=dynamic_shapes
+    # )
+    # for mode_str, mode in modes.items():
+    #     print(f"Compiling model with {mode_str} mode")
+    #     model = torch.compile(exported_model.module(), mode=mode)
+    #     s = torch.cuda.Stream()
+    #     s.wait_stream(torch.cuda.current_stream())
+    #     with torch.cuda.stream(s), torch.no_grad():
+    #         for i in range(3):
+    #             model(inputs["inputs"])
+    #     torch.cuda.current_stream().wait_stream(s)
+    #     mean = _benchmark(
+    #         exported_model.module(), inputs["inputs"], model_name=mode_str
+    #     )
+    #     if mean < min_mean:
+    #         min_mean = mean
+    #         best_mode = mode_str
     print(f"Best compilation mode: {best_mode}")
     torch.export.save(exported_model, output_file)
     return model
@@ -300,18 +305,18 @@ def main():
 
     dtype = torch.bfloat16 if not args.fp16 else torch.half
 
-    _benchmark(pose_model, mm_inputs_pose, "Original")
+    # _benchmark(pose_model, mm_inputs_pose, "Original")
 
-    graphs, graph_counts, break_reasons = explain_model(pose_model, mm_inputs_pose)
+    # graphs, graph_counts, break_reasons = explain_model(pose_model, mm_inputs_pose)
 
-    if args.explain_verbose:
-        print(f"Graphs: {graphs}")
-        print(f"Graph Counts: {graph_counts}")
-        print(f"Reasons: {break_reasons}")
+    # if args.explain_verbose:
+    #     print(f"Graphs: {graphs}")
+    #     print(f"Graph Counts: {graph_counts}")
+    #     print(f"Reasons: {break_reasons}")
 
-    if not args.force_compile and graph_counts > 1:
-        print(f"Graphs are not fusable. Expected 1 graph. Found {graph_counts}")
-        return
+    # if not args.force_compile and graph_counts > 1:
+    #     print(f"Graphs are not fusable. Expected 1 graph. Found {graph_counts}")
+    #     return
 
     pose_model.to(dtype=dtype)
     mm_inputs_pose["inputs"] = mm_inputs_pose["inputs"].to(dtype=dtype).cuda()

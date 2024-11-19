@@ -236,28 +236,33 @@ def compile_model(
     kwargs = {}
     dynamic_batch = torch.export.Dim("batch", min=1, max=max_batch_size)
     dynamic_shapes = {"inputs": {0: dynamic_batch}}
-    with torch.no_grad():
-        # model.forward = model._forward
 
-        for mode_str, mode in modes.items():
-            print(f"Compiling model with {mode_str} mode")
-            exported_model = torch.export.export(
-                model, args=args, kwargs=kwargs, dynamic_shapes=dynamic_shapes
-            )
-            compiled_model = torch.compile(exported_model.module(), mode=mode)
-            s = torch.cuda.Stream()
-            s.wait_stream(torch.cuda.current_stream())
-            with torch.cuda.stream(s), torch.no_grad():
-                for i in range(3):
-                    compiled_model(imgs)
-                    torch.cuda.synchronize()
-            torch.cuda.current_stream().wait_stream(s)
-            mean = _benchmark(compiled_model, inputs, model_name=mode_str)
-            if mean < min_mean:
-                min_mean = mean
-                best_mode = mode_str
-            # inputs["imgs"] = inputs["imgs"].to(torch.bfloat16)
-            # model = m
+    exported_model = torch.export.export_for_training(
+        model, args=args, kwargs=kwargs, dynamic_shapes=dynamic_shapes
+    )
+
+    # with torch.no_grad():
+    #     # model.forward = model._forward
+
+    #     for mode_str, mode in modes.items():
+    #         print(f"Compiling model with {mode_str} mode")
+    #         exported_model = torch.export.export(
+    #             model, args=args, kwargs=kwargs, dynamic_shapes=dynamic_shapes
+    #         )
+    #         compiled_model = torch.compile(exported_model.module(), mode=mode)
+    #         s = torch.cuda.Stream()
+    #         s.wait_stream(torch.cuda.current_stream())
+    #         with torch.cuda.stream(s), torch.no_grad():
+    #             for i in range(3):
+    #                 compiled_model(imgs)
+    #                 torch.cuda.synchronize()
+    #         torch.cuda.current_stream().wait_stream(s)
+    #         mean = _benchmark(compiled_model, inputs, model_name=mode_str)
+    #         if mean < min_mean:
+    #             min_mean = mean
+    #             best_mode = mode_str
+    #         # inputs["imgs"] = inputs["imgs"].to(torch.bfloat16)
+    #         # model = m
     print(f"Best compilation mode: {best_mode}")
     torch.export.save(exported_model, output_file)
     print(output_file)
@@ -564,18 +569,18 @@ def main():
 
     dtype = torch.bfloat16 if not args.fp16 else torch.half
 
-    _benchmark(model, mm_inputs, "Original")
+    # _benchmark(model, mm_inputs, "Original")
 
-    graphs, graph_counts, break_reasons = explain_model(model, mm_inputs)
+    # graphs, graph_counts, break_reasons = explain_model(model, mm_inputs)
 
-    if args.explain_verbose:
-        print(f"Graphs: {graphs}")
-        print(f"Graph Counts: {graph_counts}")
-        print(f"Reasons: {break_reasons}")
+    # if args.explain_verbose:
+    #     print(f"Graphs: {graphs}")
+    #     print(f"Graph Counts: {graph_counts}")
+    #     print(f"Reasons: {break_reasons}")
 
-    if not args.force_compile and graph_counts > 1:
-        print(f"Graphs are not fusable. Expected 1 graph. Found {graph_counts}")
-        return
+    # if not args.force_compile and graph_counts > 1:
+    #     print(f"Graphs are not fusable. Expected 1 graph. Found {graph_counts}")
+    #     return
 
     model.to(dtype)
     mm_inputs["imgs"] = mm_inputs["imgs"].to(dtype)
